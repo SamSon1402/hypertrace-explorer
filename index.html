@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperTrace Explorer · Rippletide demo</title>
+<style>
+  :root {
+    --night: #0b0f14; --ink: #0f141c; --mist: #161d28; --border: #1f2a38;
+    --foam: #e6ecf3; --salt: #8b95a7; --mute: #5b677a;
+    --tide: #00d4a8; --reef: #22d3ee; --hyper: #fb923c; --pass: #34d399;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--sans); color: var(--foam); background: var(--night); font-size: 14px; min-height: 100vh; }
+
+  header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--ink);
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-mark {
+    width: 26px; height: 26px; border-radius: 6px; font-family: var(--mono);
+    background: linear-gradient(135deg, var(--tide), var(--reef));
+    display: flex; align-items: center; justify-content: center; color: var(--night); font-weight: 700;
+  }
+  .brand-text { font-size: 15px; font-weight: 600; }
+  .brand-text .slash { color: var(--tide); }
+  .brand-sub { font-size: 11px; color: var(--salt); font-family: var(--mono); margin-top: 1px; }
+  .actions { display: flex; gap: 8px; align-items: center; }
+  select, button {
+    font: inherit; font-size: 13px; padding: 7px 12px;
+    background: var(--mist); color: var(--foam); border: 1px solid var(--border);
+    border-radius: 6px; cursor: pointer;
+  }
+  button:hover, select:hover { border-color: var(--tide); }
+
+  .usecase {
+    padding: 14px 20px; background: var(--ink); border-bottom: 1px solid var(--border);
+    display: flex; gap: 16px; flex-wrap: wrap;
+  }
+  .usecase-tag {
+    font-size: 10px; font-family: var(--mono); color: var(--tide);
+    letter-spacing: 1.5px; font-weight: 600;
+    background: rgba(0, 212, 168, 0.08); border: 1px solid rgba(0, 212, 168, 0.3);
+    padding: 4px 8px; border-radius: 4px; height: fit-content;
+  }
+  .usecase-text { flex: 1; min-width: 280px; font-size: 13px; line-height: 1.55; }
+  .usecase-text strong { color: var(--tide); }
+
+  main { padding: 20px; max-width: 1400px; margin: 0 auto; }
+
+  .section {
+    background: var(--ink); border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 16px; overflow: hidden;
+  }
+  .section-header {
+    padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--mist);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .section-title { font-size: 12px; font-weight: 600; color: var(--salt); text-transform: uppercase; letter-spacing: 1px; }
+  .section-count { font-size: 11px; font-family: var(--mono); color: var(--mute); }
+  .section-body { padding: 16px; }
+
+  /* Hyperedge cards — the main visual idea: an n-ary relation shown as a box containing all its members */
+  .hyperedge-card {
+    background: var(--night); border: 2px solid var(--hyper); border-radius: 8px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .hyperedge-card:last-child { margin-bottom: 0; }
+  .he-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .he-diamond {
+    width: 16px; height: 16px; transform: rotate(45deg);
+    background: var(--hyper); flex-shrink: 0;
+  }
+  .he-type { font-size: 14px; font-weight: 600; color: var(--foam); }
+  .he-id { font-size: 11px; font-family: var(--mono); color: var(--mute); margin-left: auto; }
+  .he-props {
+    display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; font-family: var(--mono);
+    color: var(--salt); margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed var(--border);
+  }
+  .he-props span strong { color: var(--foam); font-weight: 500; }
+  .he-members-label {
+    font-size: 11px; color: var(--salt); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 8px;
+  }
+  .he-members { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* Entity chip — used inside hyperedges and as clickable highlight target */
+  .entity-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px; background: var(--mist); border: 1px solid var(--border);
+    border-radius: 4px; font-size: 12px; cursor: pointer;
+    transition: all 0.1s; font-family: var(--mono); color: var(--foam);
+  }
+  .entity-chip:hover { border-color: var(--reef); background: rgba(34, 211, 238, 0.08); }
+  .entity-chip .chip-type { color: var(--mute); font-size: 10px; }
+  .entity-chip.highlight { border-color: var(--tide); background: rgba(0, 212, 168, 0.12); box-shadow: 0 0 0 2px rgba(0, 212, 168, 0.2); }
+
+  /* Entities list */
+  .entity-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;
+  }
+  .entity-card {
+    background: var(--night); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 12px; cursor: pointer; transition: all 0.1s;
+  }
+  .entity-card:hover { border-color: var(--reef); }
+  .entity-card.highlight { border-color: var(--tide); background: rgba(0, 212, 168, 0.06); box-shadow: 0 0 0 2px rgba(0, 212, 168, 0.2); }
+  .entity-card .ec-name { font-size: 13px; font-weight: 600; color: var(--foam); margin-bottom: 3px; }
+  .entity-card .ec-type {
+    font-size: 10px; color: var(--reef); text-transform: uppercase; letter-spacing: 0.5px;
+    font-family: var(--mono); margin-bottom: 6px;
+  }
+  .entity-card .ec-participation { font-size: 11px; color: var(--salt); font-family: var(--mono); }
+  .entity-card .ec-props { margin-top: 6px; font-size: 11px; font-family: var(--mono); color: var(--mute); }
+
+  /* Relations */
+  .relation-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 0; font-family: var(--mono); font-size: 12px; color: var(--foam);
+    border-bottom: 1px dashed var(--border);
+  }
+  .relation-row:last-child { border: none; }
+  .rel-arrow { color: var(--pass); font-weight: 600; }
+  .rel-type { color: var(--mute); font-size: 11px; }
+
+  .empty { padding: 20px; text-align: center; color: var(--mute); font-size: 13px; }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--night); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">≈</div>
+    <div>
+      <div class="brand-text">rippletide<span class="slash">/</span>hypertrace</div>
+      <div class="brand-sub">hyperedge inspector</div>
+    </div>
+  </div>
+  <div class="actions">
+    <label style="color: var(--salt); font-size: 12px;">Scenario:</label>
+    <select id="sampleSelect" onchange="render()">
+      <option value="pricing">Enterprise discount approval</option>
+      <option value="refund">Refund decision with GDPR</option>
+      <option value="access">Role-based data access</option>
+    </select>
+  </div>
+</header>
+
+<div class="usecase">
+  <span class="usecase-tag">USE CASE</span>
+  <div class="usecase-text">
+    <strong>Problem:</strong> Rippletide's context graph uses <strong>n-ary hyperedges</strong> — one rule binds customer + product + promo + manager all at once. Standard graph tools can't show these, so engineers read raw JSON. &nbsp;&nbsp;<strong>Solution:</strong> render each hyperedge as a <strong>card that visually contains its members</strong>. Click any entity chip to highlight every place it appears.
+  </div>
+</div>
+
+<main>
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">Hyperedges <span style="color: var(--hyper);">(n-ary relations)</span></span>
+      <span class="section-count" id="heCount">—</span>
+    </div>
+    <div class="section-body" id="hyperedgesBody"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">Entities</span>
+      <span class="section-count" id="entCount">—</span>
+    </div>
+    <div class="section-body">
+      <div class="entity-grid" id="entitiesBody"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">Binary relations</span>
+      <span class="section-count" id="relCount">—</span>
+    </div>
+    <div class="section-body" id="relationsBody"></div>
+  </div>
+</main>
+
+<script>
+const SAMPLES = {
+  pricing: {
+    entities: [
+      { id: "cust_acme", type: "Customer",  name: "Acme Corp",     props: { tier: "enterprise", region: "EU" } },
+      { id: "prod_plat", type: "Product",   name: "Platinum Plan", props: { list_price: 12000 } },
+      { id: "promo_q2",  type: "Promotion", name: "Q2_ENT",        props: { max_discount: 0.20 } },
+      { id: "seg_ent",   type: "Segment",   name: "Enterprise EU", props: {} },
+      { id: "mgr_01",    type: "Manager",   name: "Sarah K.",      props: { approval_cap: 0.30 } },
+      { id: "req_001",   type: "Request",   name: "req_001",       props: { discount: 0.25, amount_usd: 9000 } }
+    ],
+    relations: [
+      { type: "belongs_to",    from: "cust_acme", to: "seg_ent" },
+      { type: "applies_to",    from: "promo_q2",  to: "seg_ent" },
+      { type: "requested_for", from: "req_001",   to: "cust_acme" }
+    ],
+    hyperedges: [
+      { id: "h_approval", type: "ApprovalRequirement",
+        members: ["req_001", "cust_acme", "prod_plat", "mgr_01"],
+        props: { requires: "manager_signoff", reason: "discount > promo cap" } },
+      { id: "h_pricing_rule", type: "PricingRule",
+        members: ["seg_ent", "prod_plat", "promo_q2"],
+        props: { max_discount: 0.20, effective: "2026-Q2" } }
+    ]
+  },
+  refund: {
+    entities: [
+      { id: "order_884",   type: "Order",    name: "#884",            props: { amount_usd: 450, days_old: 3 } },
+      { id: "cust_42",     type: "Customer", name: "L. Martin",       props: { tier: "gold", region: "DE" } },
+      { id: "agent_rb",    type: "Agent",    name: "refund_bot v1.4", props: {} },
+      { id: "policy_gdpr", type: "Policy",   name: "gdpr_consent",    props: { jurisdiction: "EU" } },
+      { id: "policy_win",  type: "Policy",   name: "refund_window_7d", props: {} },
+      { id: "policy_cap",  type: "Policy",   name: "amount_cap_tier",  props: {} }
+    ],
+    relations: [
+      { type: "placed_by", from: "order_884", to: "cust_42" },
+      { type: "acts_on",   from: "agent_rb",  to: "order_884" }
+    ],
+    hyperedges: [
+      { id: "h_refund", type: "RefundDecision",
+        members: ["agent_rb", "order_884", "cust_42", "policy_gdpr", "policy_win", "policy_cap"],
+        props: { outcome: "BLOCKED", blocking_rule: "gdpr_consent" } }
+    ]
+  },
+  access: {
+    entities: [
+      { id: "role_sup",  type: "Role",   name: "support_agent",   props: {} },
+      { id: "role_fin",  type: "Role",   name: "finance_analyst", props: {} },
+      { id: "field_pii", type: "Field",  name: "email",           props: { sensitivity: "pii" } },
+      { id: "field_amt", type: "Field",  name: "order_amount",    props: { sensitivity: "internal" } },
+      { id: "field_ssn", type: "Field",  name: "ssn",             props: { sensitivity: "restricted" } },
+      { id: "region_eu", type: "Region", name: "EU",              props: {} },
+      { id: "region_us", type: "Region", name: "US",              props: {} }
+    ],
+    relations: [],
+    hyperedges: [
+      { id: "h_sup_read", type: "AccessGrant",
+        members: ["role_sup", "field_pii", "region_eu"],
+        props: { action: "read", condition: "ticket_open" } },
+      { id: "h_fin_read", type: "AccessGrant",
+        members: ["role_fin", "field_amt", "region_us"],
+        props: { action: "read", condition: "always" } },
+      { id: "h_ssn_deny", type: "AccessDenial",
+        members: ["role_sup", "role_fin", "field_ssn"],
+        props: { action: "read", reason: "restricted_field" } }
+    ]
+  }
+};
+
+let currentData = null;
+
+function render() {
+  const key = document.getElementById("sampleSelect").value;
+  currentData = SAMPLES[key];
+
+  renderHyperedges();
+  renderEntities();
+  renderRelations();
+
+  document.getElementById("heCount").textContent = `${currentData.hyperedges.length} total`;
+  document.getElementById("entCount").textContent = `${currentData.entities.length} total`;
+  document.getElementById("relCount").textContent = `${currentData.relations.length} total`;
+}
+
+function renderHyperedges() {
+  const body = document.getElementById("hyperedgesBody");
+  if (currentData.hyperedges.length === 0) {
+    body.innerHTML = '<div class="empty">No hyperedges in this scenario.</div>';
+    return;
+  }
+  body.innerHTML = currentData.hyperedges.map(h => `
+    <div class="hyperedge-card" data-id="${esc(h.id)}">
+      <div class="he-header">
+        <div class="he-diamond"></div>
+        <div class="he-type">${esc(h.type)}</div>
+        <div class="he-id">${esc(h.id)}</div>
+      </div>
+      ${Object.keys(h.props).length ? `
+        <div class="he-props">
+          ${Object.entries(h.props).map(([k, v]) =>
+            `<span><strong>${esc(k)}:</strong> ${esc(JSON.stringify(v))}</span>`
+          ).join("")}
+        </div>` : ""}
+      <div class="he-members-label">Binds ${h.members.length} entities:</div>
+      <div class="he-members">
+        ${h.members.map(m => {
+          const e = currentData.entities.find(x => x.id === m);
+          return `<span class="entity-chip" data-entity="${esc(m)}" onclick="highlightEntity('${esc(m)}')">
+            ${esc(e ? e.name : m)}
+            <span class="chip-type">${esc(e ? e.type : "?")}</span>
+          </span>`;
+        }).join("")}
+      </div>
+    </div>
+  `).join("");
+}
+
+function renderEntities() {
+  const body = document.getElementById("entitiesBody");
+  body.innerHTML = currentData.entities.map(e => {
+    const participationCount = currentData.hyperedges.filter(h => h.members.includes(e.id)).length;
+    const propsText = Object.keys(e.props).length
+      ? Object.entries(e.props).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(" · ")
+      : "";
+    return `
+      <div class="entity-card" data-id="${esc(e.id)}" onclick="highlightEntity('${esc(e.id)}')">
+        <div class="ec-type">${esc(e.type)}</div>
+        <div class="ec-name">${esc(e.name)}</div>
+        <div class="ec-participation">in ${participationCount} hyperedge${participationCount === 1 ? "" : "s"}</div>
+        ${propsText ? `<div class="ec-props">${esc(propsText)}</div>` : ""}
+      </div>
+    `;
+  }).join("");
+}
+
+function renderRelations() {
+  const body = document.getElementById("relationsBody");
+  if (currentData.relations.length === 0) {
+    body.innerHTML = '<div class="empty">No binary relations in this scenario — all connections flow through hyperedges.</div>';
+    return;
+  }
+  body.innerHTML = currentData.relations.map(r => {
+    const from = currentData.entities.find(e => e.id === r.from);
+    const to   = currentData.entities.find(e => e.id === r.to);
+    return `
+      <div class="relation-row">
+        <span>${esc(from ? from.name : r.from)}</span>
+        <span class="rel-arrow">──[${esc(r.type)}]──▶</span>
+        <span>${esc(to ? to.name : r.to)}</span>
+      </div>
+    `;
+  }).join("");
+}
+
+function highlightEntity(id) {
+  document.querySelectorAll(".entity-chip, .entity-card").forEach(el => el.classList.remove("highlight"));
+  document.querySelectorAll(`[data-entity="${id}"], [data-id="${id}"]`).forEach(el => {
+    if (el.classList.contains("entity-chip") || el.classList.contains("entity-card")) {
+      el.classList.add("highlight");
+    }
+  });
+  const card = document.querySelector(`.entity-card[data-id="${id}"]`);
+  if (card) card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+render();
+</script>
+</body>
+</html>
